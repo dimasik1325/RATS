@@ -453,6 +453,21 @@ h1,h2,h3,.ff-t{font-family:'Oswald','Russo One',sans-serif;font-weight:600;lette
 .mode-grid button.act{border-color:#ff4433;color:#ff8d80;background:rgba(226,54,44,.09)}
 .camp-buy{border-color:rgba(226,54,44,.45);color:#ff8d80;background:rgba(20,10,9,.75)}
 #screen-intro{background:radial-gradient(circle at 50% 60%,rgba(120,14,8,.16),transparent 55%),#050303}
+/* ---------- КОМПАКТНОЕ МЕНЮ + КНОПКА ВЫХОДА ---------- */
+.menu-list .m-item{min-height:45px;padding:9px 18px;font-size:clamp(14px,1.5vw,18px)}
+.menu-exit{display:flex;align-items:center;gap:16px;width:min(520px,52vw);min-height:52px;margin-top:12px;padding:11px 20px;cursor:pointer;
+  border:1px solid rgba(226,54,44,.6);border-left:4px solid #e03a2f;background:linear-gradient(90deg,rgba(84,14,8,.55),rgba(18,8,7,.35));
+  font-family:'Oswald',sans-serif;font-weight:600;font-size:clamp(14px,1.5vw,18px);letter-spacing:.14em;text-transform:uppercase;color:#ffb3a8;
+  clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,0 100%);
+  box-shadow:0 10px 30px rgba(120,10,6,.25),inset 0 0 24px rgba(226,54,44,.07);transition:.16s}
+.menu-exit .num{display:flex;align-items:center;justify-content:center;width:30px;height:23px;border:1px solid rgba(226,54,44,.55);color:#ff8d80;font-family:'JetBrains Mono',monospace;font-size:10px}
+.menu-exit .exit-label{flex:1}
+.menu-exit .exit-skull{font-size:17px;color:#ff4433;text-shadow:0 0 12px rgba(226,54,44,.6);transition:.16s}
+.menu-exit:hover{background:linear-gradient(90deg,rgba(160,22,12,.75),rgba(40,10,8,.5));border-color:#ff6a58;transform:translateX(7px);color:#fff3ee;box-shadow:0 14px 40px rgba(200,30,16,.35)}
+.menu-exit:hover .exit-skull{text-shadow:0 0 20px rgba(255,68,51,.95);transform:scale(1.25)}
+@media(max-height:900px){.menu-title{margin-top:12px}.menu-list{margin-top:16px}}
+@media(max-height:820px){.menu-title{font-size:clamp(40px,7vw,86px)}.menu-title:after{margin-top:8px}.menu-kicker{padding:5px 11px}.menu-list .m-item{min-height:40px;padding:7px 16px}.menu-exit{min-height:46px;margin-top:10px}}
+@media(max-height:740px){.menu-command-grid{display:none}.menu-character-preview,.menu-side-readout{display:none}.menu-list{max-height:calc(100vh - 260px)}}
 .i-kicker{color:#ff8d80;font-family:'JetBrains Mono',monospace}
 .i-name{color:#f2ead8;text-shadow:0 0 50px rgba(226,54,44,.4)}
 </style>
@@ -557,8 +572,8 @@ h1,h2,h3,.ff-t{font-family:'Oswald','Russo One',sans-serif;font-weight:600;lette
     <div class="m-item" id="mi-sponsors"><span class="num">09</span>СПОНСОРЫ</div>
     <div class="m-item" id="mi-surprise"><span class="num">10</span>СЮРПРИЗ</div>
     <div class="m-item" id="mi-donate"><span class="num">11</span>ДОНАТ • ГЕМЫ</div>
-    <div class="m-item" id="mi-exit"><span class="num">12</span>ВЫХОД ИЗ ИГРЫ</div>
   </div>
+  <div class="menu-exit" id="mi-exit"><span class="num">12</span><span class="exit-label">ВЫХОД ИЗ ИГРЫ</span><span class="exit-skull">☠</span></div>
   <div class="menu-foot">
     <span>Игрок: <b id="mf-nick">НЕ ЗАДАН</b></span>
     <span>Кошель: <b id="mf-coins">0 м.</b></span>
