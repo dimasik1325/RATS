@@ -433,7 +433,7 @@ body:after{content:'';position:fixed;inset:0;pointer-events:none;z-index:110;bac
   <div class="menu-sub">ПОСЛЕДНИЙ ОХОТНИК • 2087 • СИСТЕМА ПЕРИМЕТРА АКТИВНА</div>
   <div class="menu-command-grid">
     <div class="command-tile"><span>СИСТЕМА</span><b>ONLINE</b><i class="signal-line"></i></div>
-    <div class="command-tile"><span>АКТИВНЫЙ ПРОФИЛЬ</span><b id="menu-character">НИК</b><i class="signal-line amber-line"></i></div>
+    <div class="command-tile" id="tile-profile" style="cursor:pointer" title="Нажми, чтобы изменить ник"><span>ИГРОК • НИК</span><b id="menu-character">НЕ ЗАДАН</b><i class="signal-line amber-line"></i></div>
     <div class="command-tile"><span>УРОВЕНЬ ДОСТУПА</span><b>ОХОТНИК / <em id="menu-rank">01</em></b><i class="signal-line"></i></div>
   </div>
   <div class="menu-character-preview" id="menu-character-preview"><div class="menu-character-head"><span>ОПЕРАТИВНИК // 3D-ПРОФИЛЬ</span><b id="menu-kit-name">ПОЛЕВОЙ</b></div><div id="menu-character-slot"></div><div class="menu-character-foot"><span id="menu-character-role">УНИВЕРСАЛЬНЫЙ ОХОТНИК</span><button id="menu-open-character">ОТКРЫТЬ ПРОФИЛЬ ▸</button></div></div>
@@ -2931,7 +2931,7 @@ function startWave(){ G.wave++; pendingSpawns=waveComp(G.wave); warmWaveMeshes(p
   if(G.mode==='roulette'&&G.owned.length>1){ equip(pick(G.owned)); addLog('Рулетка оружия: новый комплект'); }
   const hasBoss=pendingSpawns.some(x=>RAT_TYPES[x]?.boss);
   announce(hasBoss?'БОСС-ВОЛНА':'ВОЛНА '+G.wave,hasBoss?(RAT_TYPES[pendingSpawns.find(x=>RAT_TYPES[x]?.boss)]?.name||'Босс близко'):(G.mode==='nightmare'?'Они стали быстрее':'ДЕРЖИСЬ, ОХОТНИК'));
-  SFX.horn();SFX.characterCall(characterProfile().voice||0);if(hasBoss)SFX.boss();if(G.wave>1&&Math.random()<.82)triggerEvent();updHUD();
+  SFX.horn();SFX.characterCall(characterProfile().voice||0);if(G.wave>1&&Math.random()<.5)playVoiceLine('wave');if(hasBoss)SFX.boss();if(G.wave>1&&Math.random()<.82)triggerEvent();updHUD();
 }
 function announce(a,b){ $('ann-a').textContent=a; $('ann-b').textContent=b||'';
   const el=$('announce'); el.classList.remove('show'); void el.offsetWidth; el.classList.add('show'); }
@@ -3039,7 +3039,7 @@ function updHUD(){
   $('w-extra').textContent=modBits.length?'МОДЫ: '+modBits.join(' • '):(w.flame?'короткая дистанция • огонь':w.silent?'тихий выстрел':'');
   $('hud-grenades').textContent=G.grenades; $('hud-mines').textContent=G.mines;
   $('hud-wave').textContent='ВОЛНА '+Math.max(1,G.wave)+' • '+(MODE_NAMES[G.mode]||'ВЫЖИВАНИЕ');
-  const charEl=$('hud-character');if(charEl)charEl.textContent='ОПЕРАТИВНИК: '+characterProfile().name;
+  const charEl=$('hud-character');if(charEl)charEl.textContent='ОПЕРАТИВНИК: '+(G.playerNick||'ОХОТНИК')+' • '+characterProfile().name;
   const sectorNames={forest:'SECTOR 01 / FOREST',lab:'SECTOR 02 / NEO-BIO',sewer:'SECTOR 03 / SEWER',village:'SECTOR 04 / VILLAGE',military:'SECTOR 05 / OUTPOST'};
   const sectorEl=$('hud-sector-code');if(sectorEl)sectorEl.textContent=sectorNames[G.location]||'SECTOR 01';
   const clockEl=$('hud-clock');if(clockEl){const sec=Math.floor(performance.now()/1000)%86400;clockEl.textContent=String(Math.floor(sec/3600)).padStart(2,'0')+':'+String(Math.floor(sec/60)%60).padStart(2,'0')+':'+String(sec%60).padStart(2,'0');}
@@ -3260,9 +3260,9 @@ function closeCamp(){G.state='menu';G.uiLock=false;campProps.visible=false;locat
 $('btn-camp-back').onclick=closeCamp;
 $('mi-camp').onclick=()=>{SFX.click();openCamp();};
 function updateProfileAge(){const age=+$('profile-age').value; $('profile-age-value').textContent=age+' лет';}
-function openProfileForm(){
-  if(G.playerNick)return;
-  $('profile-nick').value='';$('profile-age').value=G.playerAge||18;updateProfileAge();$('profile-error').textContent='';$('profile-modal').classList.add('on');
+function openProfileForm(force){
+  if(G.playerNick&&!force)return;
+  $('profile-nick').value=G.playerNick||'';$('profile-age').value=G.playerAge||18;updateProfileAge();$('profile-error').textContent='';$('profile-modal').classList.add('on');
   setTimeout(()=>$('profile-nick').focus(),40);
 }
 function closePrivacy(choice){
@@ -3272,13 +3272,14 @@ function closePrivacy(choice){
 $('privacy-accept').onclick=()=>closePrivacy('accepted');
 $('privacy-reject').onclick=()=>closePrivacy('rejected');
 function initPrivacyPrompt(){let c=null;try{c=localStorage.getItem('rats_privacy_consent');}catch(e){}if(!c)$('privacy-modal').classList.add('on');else openProfileForm();}
+$('tile-profile').onclick=()=>{SFX.click();openProfileForm(true);};
 $('profile-age').oninput=updateProfileAge;
 $('profile-form').addEventListener('submit',e=>{
   e.preventDefault();const nick=$('profile-nick').value.trim().replace(/\s+/g,' ');
   if(nick.length<2){$('profile-error').textContent='Введите ник длиной не менее двух символов.';return;}
   G.playerNick=nick.slice(0,20);G.playerAge=clamp(+$('profile-age').value,6,100);save();updateMenuFoot();$('profile-modal').classList.remove('on');SFX.click();
 });
-function updateMenuFoot(){ $('mf-nick').textContent=G.playerNick||'НЕ ЗАДАН';$('mf-coins').textContent=G.coins+' м.';const mg=$('mf-gems');if(mg)mg.textContent=(G.gems||0)+' ◆'; $('mf-rec').textContent='волна '+G.record; const r=$('mf-rank'); if(r)r.textContent=G.rank||1; const mc=$('menu-character');if(mc)mc.textContent=characterProfile().name;const mr=$('menu-rank');if(mr)mr.textContent=String(G.rank||1).padStart(2,'0'); }
+function updateMenuFoot(){ $('mf-nick').textContent=G.playerNick||'НЕ ЗАДАН';$('mf-coins').textContent=G.coins+' м.';const mg=$('mf-gems');if(mg)mg.textContent=(G.gems||0)+' ◆'; $('mf-rec').textContent='волна '+G.record; const r=$('mf-rank'); if(r)r.textContent=G.rank||1; const mc=$('menu-character');if(mc)mc.textContent=G.playerNick||'НЕ ЗАДАН';const mcr=$('menu-character-role');if(mcr)mcr.textContent=characterProfile().name+' • '+characterProfile().role;const mr=$('menu-rank');if(mr)mr.textContent=String(G.rank||1).padStart(2,'0'); }
 
 /* ================= НАСТРОЙКИ ================= */
 function applySettings(){
@@ -3890,12 +3891,38 @@ function updateSecretCaches(dt){
   }
 }
 /* ================= ГЛАВНЫЙ ЦИКЛ ================= */
+/* ================= ГОЛОС ПЕРСОНАЖА =================
+   Реальные озвучки (mp3). Персонаж периодически бормочет, вздыхает, комментирует
+   ночь; тембр меняется playbackRate по выбранному герою (voice: 0/1/2). */
+const VOICE_LINES={
+  idle:['voice_p_01.mp3','voice_p_02.mp3','voice_p_03.mp3','voice_p_04.mp3','voice_p_05.mp3','voice_p_06.mp3','voice_p_07.mp3','voice_p_08.mp3'],
+  wave:['voice_p_10.mp3','voice_p_09.mp3'],
+  hurt:['voice_p_01.mp3','voice_p_04.mp3']
+};
+const VOICE_STATE={els:{},nextT:rnd(14,24),last:''};
+function voiceRate(){ const c=CHARACTERS[G.character]; if(!c)return 1; return c.voice===1?.93:c.voice===2?1.08:1; }
+function playVoiceLine(cat){ try{
+  const pool=VOICE_LINES[cat]||[]; if(!pool.length)return;
+  let f; do{ f=pool[Math.random()*pool.length|0]; }while(pool.length>1&&f===VOICE_STATE.last);
+  VOICE_STATE.last=f;
+  let a=VOICE_STATE.els[f]; if(!a){ a=new Audio('./audio/'+f); a.preload='auto'; VOICE_STATE.els[f]=a; }
+  a.playbackRate=voiceRate(); a.volume=clamp(G.vol*G.sfx*.95,0,1); a.currentTime=0;
+  const p=a.play(); if(p&&p.catch)p.catch(()=>{});
+}catch(e){} }
+function updatePlayerVoice(dt){
+  if(G.state!=='game'||G.uiLock)return;
+  VOICE_STATE.nextT-=dt;
+  if(VOICE_STATE.nextT>0)return;
+  VOICE_STATE.nextT=rnd(26,44);
+  playVoiceLine(G.hp<G.maxHp*.35?'hurt':'idle');
+}
 function updateGame(dt){
   const t=performance.now()/1000;
   updateSecretCaches(dt);
   if(activeNoise){activeNoise.t-=dt;if(activeNoise.t<=0)activeNoise=null;}
   updateMapLights(dt);
   ambientPulse(dt);
+  updatePlayerVoice(dt);
   updateWorldTime(dt);
   // движение
   let mx=0,mz=0;
