@@ -453,6 +453,21 @@ h1,h2,h3,.ff-t{font-family:'Oswald','Russo One',sans-serif;font-weight:600;lette
 .mode-grid button.act{border-color:#ff4433;color:#ff8d80;background:rgba(226,54,44,.09)}
 .camp-buy{border-color:rgba(226,54,44,.45);color:#ff8d80;background:rgba(20,10,9,.75)}
 #screen-intro{background:radial-gradient(circle at 50% 60%,rgba(120,14,8,.16),transparent 55%),#050303}
+/* ---------- ЗАСТАВКА KR-13 ---------- */
+#screen-splash{flex-direction:column;align-items:center;justify-content:center;background:#040202;z-index:170;cursor:pointer;overflow:hidden}
+#screen-splash:after{content:'';position:absolute;inset:0;background:radial-gradient(circle at 50% 44%,transparent 42%,rgba(0,0,0,.8) 100%);pointer-events:none}
+#screen-splash:before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent 0 3px,rgba(226,54,44,.03) 3px 4px);pointer-events:none;animation:splashScan 7s linear infinite}
+@keyframes splashScan{to{background-position:0 120px}}
+.splash-logo{width:clamp(130px,17vw,225px);opacity:0;animation:splashLogo 1.5s .25s cubic-bezier(.2,.85,.3,1) forwards;filter:drop-shadow(0 0 52px rgba(226,54,44,.55)) drop-shadow(0 14px 30px rgba(0,0,0,.9))}
+@keyframes splashLogo{0%{opacity:0;transform:scale(1.55)}62%{opacity:1;transform:scale(.965)}100%{opacity:1;transform:scale(1)}}
+.splash-corp{margin-top:24px;font-family:'JetBrains Mono',monospace;font-size:clamp(11px,1.3vw,14px);letter-spacing:.52em;text-indent:.52em;color:#ff8d80;opacity:0;animation:fadeUp .8s 1.6s forwards;text-shadow:0 0 18px rgba(226,54,44,.35)}
+.splash-presents{margin-top:9px;font-family:'JetBrains Mono',monospace;font-size:clamp(8px,.9vw,10px);letter-spacing:.4em;text-indent:.4em;color:rgba(233,226,210,.48);opacity:0;animation:fadeUp .8s 2.1s forwards}
+.splash-title{margin-top:30px;font-family:'Oswald',sans-serif;font-weight:700;font-size:clamp(56px,10vw,124px);line-height:.95;letter-spacing:.04em;color:#f2ead8;opacity:0;animation:titleSlam .5s 2.7s cubic-bezier(.15,.9,.3,1) forwards;text-shadow:0 3px 0 #1c0605,0 0 70px rgba(226,54,44,.5)}
+.splash-title em{color:#ff4433;font-style:normal}
+.splash-sub{margin-top:8px;font-family:'JetBrains Mono',monospace;font-size:clamp(9px,1vw,12px);letter-spacing:.62em;text-indent:.62em;color:rgba(255,138,128,.85);opacity:0;animation:fadeUp .8s 3.2s forwards}
+.splash-hint{position:absolute;bottom:6vh;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.32em;text-indent:.32em;color:rgba(233,226,210,.55);opacity:0;animation:fadeUp .8s 3.7s forwards}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@keyframes titleSlam{0%{opacity:0;transform:scale(1.75);filter:blur(7px)}100%{opacity:1;transform:scale(1);filter:blur(0)}}
 /* ---------- КОМПАКТНОЕ МЕНЮ + КНОПКА ВЫХОДА ---------- */
 .menu-list .m-item{min-height:45px;padding:9px 18px;font-size:clamp(14px,1.5vw,18px)}
 .menu-exit{display:flex;align-items:center;gap:16px;width:min(520px,52vw);min-height:52px;margin-top:12px;padding:11px 20px;cursor:pointer;
@@ -537,6 +552,16 @@ h1,h2,h3,.ff-t{font-family:'Oswald','Russo One',sans-serif;font-weight:600;lette
   <div class="tbtn" id="tb-wep">СМЕНА</div>
   <div class="tbtn" id="tb-shop">МАГАЗИН</div>
   <div class="tbtn" id="tb-pause">II</div>
+</div>
+
+<!-- ЗАСТАВКА KR-13 CORPORATION -->
+<div class="screen" id="screen-splash">
+  <img class="splash-logo" src="assets/logo.png" alt="">
+  <div class="splash-corp">KR-13 CORPORATION</div>
+  <div class="splash-presents">БИОЛОГИЧЕСКИЙ ДИВИЗИОН ПРЕДСТАВЛЯЕТ</div>
+  <div class="splash-title">КРЫСА<em>РИЙ</em></div>
+  <div class="splash-sub">КРАСНЫЙ ПРОТОКОЛ</div>
+  <div class="splash-hint">НАЖМИ, ЧТОБЫ ПРОДОЛЖИТЬ</div>
 </div>
 
 <!-- МЕНЮ -->
@@ -2772,7 +2797,7 @@ function spawnRat(typeName){
   const modeHp=G.mode==='nightmare'?1.4:G.mode==='challenge'?1.15:1;
   const modeSpeed=G.mode==='nightmare'?1.2:1,modeDmg=G.mode==='nightmare'?1.25:G.mode==='challenge'?1.12:1;
   rats.push({g:mesh,t,age,ageScale:age.scale,familyId,familyRole,hp:t.hp*hpMul*modeHp*age.hp,maxHp:t.hp*hpMul*modeHp*age.hp,atkCd:rnd(.4,1.2),phase:Math.random()*9,
-    speed:t.speed*modeSpeed*age.speed,damage:t.dmg*modeDmg*age.damage,kb:new THREE.Vector3(),hitRadius:.48*t.scale*age.scale,dead:false,deadT:0,hitT:0,pounce:0,attackHit:false,spitCd:rnd(1,2),dashCd:rnd(1,3),dashT:0,chargeT:0,chargeHit:false,burrowCd:rnd(2,5),burrowT:0,healCd:rnd(1,3),skillCd:rnd(3,6),alertT:0,noiseSeq:0,noiseT:0,noiseX:0,noiseZ:0,stolen:0,dragBody:null,dragT:0,dragged:false});
+    speed:t.speed*modeSpeed*age.speed,damage:t.dmg*modeDmg*age.damage,kb:new THREE.Vector3(),hitRadius:.48*t.scale*age.scale,dead:false,deadT:0,hitT:0,pounce:0,attackHit:false,spitCd:rnd(1,2),dashCd:rnd(1,3),dashT:0,chargeT:0,chargeHit:false,burrowCd:rnd(2,5),burrowT:0,healCd:rnd(1,3),skillCd:rnd(3,6),alertT:0,noiseSeq:0,noiseT:0,noiseX:0,noiseZ:0,stolen:0,dragBody:null,dragT:0,dragged:false,blindT:0,wanderA:0});
   if(t.cyberdog)addLog('ВНИМАНИЕ: КИБОРГ-СОБАКА обнаружена');
   if(t.boss){ announce('БОСС',t.name); SFX.boss(); }
 } 
@@ -3438,7 +3463,7 @@ function closeInv(){ hide('screen-inv'); G.state='game'; G.uiLock=false;
   canvas.requestPointerLock&&canvas.requestPointerLock(); updHUD(); }
 
 /* ================= ЭКРАНЫ ================= */
-const SCREENS=['screen-menu','screen-camp','screen-ach','screen-map','screen-archive','screen-character','screen-settings','screen-controls','screen-about','screen-sponsors','screen-donate','screen-intro','screen-video','screen-shop','screen-inv','screen-pause','screen-win','screen-dead'];
+const SCREENS=['screen-splash','screen-menu','screen-camp','screen-ach','screen-map','screen-archive','screen-character','screen-settings','screen-controls','screen-about','screen-sponsors','screen-donate','screen-intro','screen-video','screen-shop','screen-inv','screen-pause','screen-win','screen-dead'];
 function show(id){ SCREENS.forEach(s=>$(s).classList.toggle('on',s===id)); }
 function hide(id){ $(id).classList.remove('on'); }
 const CAMP_MODULES={
@@ -4399,7 +4424,7 @@ function updateGame(dt){
         r.g.userData.fg.visible=r.g.userData.bg.visible=false; ratRemove(r); }
       continue; }
     r.phase+=dt*(r.age===RAT_AGES.young?10:r.age===RAT_AGES.old?5.5:8);
-    if(r.blindT>0){ r.blindT-=dt; r.g.rotation.z=Math.sin(r.phase*2.2)*.14; if(r.atkCd<.7)r.atkCd=.7+Math.random(); } else if(r.g.rotation.z&&r.deadT<=0)r.g.rotation.z=0;
+    if((r.blindT||0)>0){ r.blindT-=dt; r.g.rotation.z=Math.sin(r.phase*2.2)*.14; if(r.atkCd<.7)r.atkCd=.7+Math.random(); } else if(r.g.rotation.z&&r.deadT<=0)r.g.rotation.z=0;
     const dx=player.x-r.g.position.x,dz=player.z-r.g.position.z,dist=Math.hypot(dx,dz);
     r.alertT=Math.max(0,(r.alertT||0)-dt);
     const allyTarget=null; let targetX=player.x,targetZ=player.z;
@@ -4419,7 +4444,7 @@ function updateGame(dt){
     if(r.t.boss&&r.skillCd<=0){ r.skillCd=6.5; pendingSpawns.push('scout','gray',r.t===RAT_TYPES.sewerBoss?'spitter':'giant'); SFX.boss(); addLog('Босс зовёт подкрепление'); }
     if(r.t.signal&&r.skillCd<=0){r.skillCd=5.5;pendingSpawns.push('gray','scout');SFX.squeak(.65);addLog('Сигнальщик позвал стаю');}
     if(r.t.thief&&!r.stolen){const coin=coinsArr.find(c=>Math.hypot(c.m.position.x-r.g.position.x,c.m.position.z-r.g.position.z)<2.7);if(coin){r.stolen=coin.val;scene.remove(coin.m);coinsArr.splice(coinsArr.indexOf(coin),1);addLog('Крыса-вор украла '+coin.val+' м.');}}
-    if(r.t.ranged&&dist>4&&dist<16&&r.spitCd<=0&&r.blindT<=0){ r.spitCd=2.4; SFX.spit(); if(r.t.acid)burst(new THREE.Vector3(player.x,1.2,player.z),0x9dff5c,7,2); damagePlayer(r.damage*(r.t.acid?.68:.55),true); }
+    if(r.t.ranged&&dist>4&&dist<16&&r.spitCd<=0&&(r.blindT||0)<=0){ r.spitCd=2.4; SFX.spit(); if(r.t.acid)burst(new THREE.Vector3(player.x,1.2,player.z),0x9dff5c,7,2); damagePlayer(r.damage*(r.t.acid?.68:.55),true); }
     if(r.t.healer&&r.healCd<=0){ r.healCd=3.2; const ally=rats.find(x=>x!==r&&!x.dead&&Math.hypot(x.g.position.x-r.g.position.x,x.g.position.z-r.g.position.z)<6); if(ally){ally.hp=Math.min(ally.maxHp,ally.hp+ally.maxHp*.12);addLog('Санитар лечит стаю');} }
     if(r.t.cyberdog&&r.skillCd<=0&&dist<6){r.skillCd=4.6;SFX.boomWarn();G.shake=Math.min(.6,G.shake+.24);burst(r.g.position.clone().setY(.75),0x62eaff,12,5);damagePlayer(r.damage*.72,false);addLog('КИБОРГ-СОБАКА: электрошоковый укус');}
     if(r.t.shock&&!r.t.cyberdog&&r.skillCd<=0&&dist<8){r.skillCd=4.8;SFX.boomWarn();G.shake=Math.min(.6,G.shake+.28);damagePlayer(r.damage*.42,false);addLog('Электрический громила выпускает импульс');}
@@ -4428,7 +4453,7 @@ function updateGame(dt){
     const sp=r.speed*eventEnemySpeed*(r.slowT>0?.35:1)*(r.dashT>0?2.1:1)*(r.chargeT>0?2.65:1)*(r.t.monster&&r.burrowT>0?1.75:1)*(r.alertT>0?1.12:1);
     const noiseTarget=r.noiseT>0,tx=noiseTarget?r.noiseX:targetX,tz=noiseTarget?r.noiseZ:targetZ,td=Math.hypot(tx-r.g.position.x,tz-r.g.position.z);
     const stop=r.t.ranged?7:1.2;
-    if(r.blindT>0){ if(Math.random()<dt*2.2)r.wanderA=Math.random()*Math.PI*2; r.g.position.x+=Math.cos(r.wanderA||0)*sp*.3*dt; r.g.position.z+=Math.sin(r.wanderA||0)*sp*.3*dt; }
+    if((r.blindT||0)>0){ if(Math.random()<dt*2.2)r.wanderA=Math.random()*Math.PI*2; r.g.position.x+=Math.cos(r.wanderA||0)*sp*.3*dt; r.g.position.z+=Math.sin(r.wanderA||0)*sp*.3*dt; }
     else if(noiseTarget&&td<1){r.noiseT=0;} else if(noiseTarget||targetDist>stop){const qx=tx-r.g.position.x,qz=tz-r.g.position.z,ql=Math.hypot(qx,qz)||1;r.g.position.x+=qx/ql*sp*dt;r.g.position.z+=qz/ql*sp*dt;}
     r.g.position.x+=r.kb.x*dt; r.g.position.z+=r.kb.z*dt; r.kb.multiplyScalar(Math.max(0,1-8*dt));
     if(!r.t.climber)resolveMapCollision(r.g.position,r.hitRadius||.48);
@@ -4439,7 +4464,7 @@ function updateGame(dt){
     u.tailG.rotation.y=Math.sin(r.phase*1.6)*.4;
     r.atkCd-=dt;
     const atkDist=r.hitRadius+.43;
-    if(targetDist<atkDist&&r.atkCd<=0&&r.pounce<=0&&r.blindT<=0){ r.atkCd=1.45; r.pounce=.34; r.attackHit=false; SFX.squeak(r.t.scale<1.3?1:.6); }
+    if(targetDist<atkDist&&r.atkCd<=0&&r.pounce<=0&&(r.blindT||0)<=0){ r.atkCd=1.45; r.pounce=.34; r.attackHit=false; SFX.squeak(r.t.scale<1.3?1:.6); }
     if(r.pounce>0){
       r.pounce-=dt; const attackProgress=1-r.pounce/.34; r.g.position.y=Math.sin(attackProgress*Math.PI)*.32;
       if(!r.attackHit&&attackProgress>.62){ r.attackHit=true; const charging=r.chargeT>0; damagePlayer(r.damage*(charging?1.55:1),r.t.poison); if(charging){burst(r.g.position.clone().setY(.55),r.t.monsterKind==='steelboar'?0xffc04c:0xff7438,10,5);r.chargeT=0;r.chargeHit=true;G.shake=Math.min(.7,G.shake+.22);} }
@@ -4575,7 +4600,13 @@ function loop(now){
   if(st==='game'){ performanceGuard(dt); adaptiveUpscale(dt); updateGame(dt); }
   // Никаких искусственных ограничений: все три пресета рисуются на каждом доступном кадре.
   if(st!=='settings')renderer.render(scene,camera); }
-applyLocation(); applySettings(); updateMenuFoot(); show('screen-menu'); initPrivacyPrompt();
+applyLocation(); applySettings(); updateMenuFoot();
+let splashDone=false;
+function finishSplash(){ if(splashDone)return; splashDone=true;
+  initAudio(); SFX.click(); hide('screen-splash'); show('screen-menu'); initPrivacyPrompt(); }
+$('screen-splash').addEventListener('click',finishSplash);
+setTimeout(finishSplash,5600);
+show('screen-splash');
 requestAnimationFrame(loop);
 </script>
 </body>
