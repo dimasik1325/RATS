@@ -292,6 +292,12 @@ button,.btn{border-radius:0}
 #log{bottom:104px}.log-i{border-left-color:var(--cyan);background:rgba(3,13,12,.78);font-size:11px}.announce .a1{color:var(--ink);text-shadow:0 0 30px rgba(112,216,208,.25)}
 /* ---------- МАГАЗИН, ПАУЗА, ПРИВАТНОСТЬ ---------- */
 #screen-shop,#screen-inv{background:rgba(1,7,7,.86)}.shop{width:min(820px,94vw);background:linear-gradient(145deg,rgba(9,20,18,.98),rgba(4,10,10,.98));border:1px solid rgba(205,222,210,.25);box-shadow:0 30px 100px rgba(0,0,0,.65)}.shop-h{padding:22px 28px;border-bottom:1px solid rgba(112,216,208,.18)}.shop-h h2{font-size:23px;color:var(--amber)}.shop-h .bal{color:var(--cyan)}.shop-list{padding:12px 20px}.srow{padding:15px 10px;border-bottom-color:rgba(205,222,210,.12)}.srow .ic{width:44px;height:44px;border-color:rgba(112,216,208,.35);color:var(--cyan);background:rgba(112,216,208,.05)}.srow .nm{color:var(--ink)}.srow .ds{color:var(--ink-dim)}.srow .buy{border-color:var(--amber);color:var(--amber);background:rgba(229,184,78,.05)}.shop-f{padding:16px 28px;border-top-color:rgba(112,216,208,.18)}
+/* ---------- КАТЕГОРИИ МАГАЗИНА ---------- */
+.shop-cats{display:flex;flex-wrap:wrap;gap:6px;padding:12px 20px 10px;border-bottom:1px solid rgba(205,222,210,.12)}
+.cat-btn{padding:8px 13px;border:1px solid rgba(205,222,210,.25);background:rgba(2,8,8,.5);color:var(--ink-dim);font:700 10px 'Rubik';letter-spacing:.1em;text-transform:uppercase;transition:.15s;cursor:pointer}
+.cat-btn:hover{border-color:var(--cyan);color:var(--cyan)}
+.cat-btn.act{background:var(--amber);border-color:#ffe39a;color:#17140b}
+.cat-btn small{opacity:.72;font-weight:500;margin-left:4px}
 #screen-pause,#screen-win,#screen-dead{background:radial-gradient(circle,rgba(19,58,52,.3),rgba(1,5,5,.93) 60%)}#screen-pause h2,#screen-win h2,#screen-dead h2{font-size:clamp(38px,7vw,78px);letter-spacing:.18em;text-shadow:0 0 35px rgba(112,216,208,.16)}#screen-win h2{color:var(--cyan)}#screen-dead h2{color:var(--danger);text-shadow:0 0 35px rgba(239,91,76,.2)}.pause-col{min-width:300px}.stats{padding:16px 20px;border:1px solid rgba(205,222,210,.18);background:rgba(5,16,15,.7)}
 .privacy-box{background:linear-gradient(145deg,rgba(9,20,18,.98),rgba(3,9,9,.98));border:1px solid var(--cyan);box-shadow:0 0 0 5px rgba(112,216,208,.06),0 30px 100px rgba(0,0,0,.7)}.privacy-box h2{color:var(--cyan)}
 #click-hint{background:rgba(1,7,7,.66)}#click-hint div{padding:16px 22px;border:1px solid var(--cyan);background:rgba(4,20,18,.86);color:var(--cyan);box-shadow:0 0 28px rgba(112,216,208,.12)}
@@ -730,6 +736,11 @@ body:after{content:'';position:fixed;inset:0;pointer-events:none;z-index:110;bac
 <div class="screen" id="screen-shop">
   <div class="shop">
     <div class="shop-h"><h2>ЛАВКА ОХОТНИКА</h2><div class="bal" id="shop-bal">0 м.</div></div>
+    <div class="shop-cats" id="shop-cats">
+      <button class="cat-btn act" data-cat="melee">БЛИЖНЕЕ ОРУЖИЕ</button>
+      <button class="cat-btn" data-cat="gun">ОГНЕСТРЕЛНОЕ ОРУЖИЕ</button>
+      <button class="cat-btn" data-cat="misc">РАЗНОЕ</button>
+    </div>
     <div class="shop-list" id="shop-list"></div>
     <div class="shop-f"><div class="tip">Между волнами крысы не кусаются. Пользуйся моментом.</div><button class="btn" id="btn-shop-close">ЗАКРЫТЬ [B]</button></div>
   </div>
@@ -3155,10 +3166,20 @@ function shopIcon(it){
   if(it.nm==='Аптечка')return`<svg width="20" height="20" viewBox="0 0 20 20"><rect x="2" y="5" width="16" height="11" fill="none" stroke="#e8dfc8" stroke-width="1.6"/><path d="M10 8v6M7 11h6" stroke="#c9453a" stroke-width="2"/></svg>`;
   if(it.upg)return`<svg width="20" height="20" viewBox="0 0 20 20"><path d="M10 2l7 8h-4v8H7v-8H3z" fill="none" stroke="#d9a441" stroke-width="1.6"/></svg>`;
   return`<svg width="20" height="20" viewBox="0 0 20 20"><path d="M3 12l11-8 3 3-8 11-4 1-3-3z" fill="none" stroke="#e8dfc8" stroke-width="1.5"/></svg>`; }
+/* Категории лавки: ближнее оружие / огнестрел / разное (патроны, снаряжение, моды, аптечки, улучшения). */
+const SHOP_CAT_NAMES={melee:'БЛИЖНЕЕ ОРУЖИЕ',gun:'ОГНЕСТРЕЛНОЕ ОРУЖИЕ',misc:'РАЗНОЕ'};
+const shopCatOf=it=> it.w ? ((WEAPONS[it.w]&&WEAPONS[it.w].type==='gun')?'gun':'melee') : 'misc';
+let shopCat='melee';
 function renderShop(){
   $('shop-bal').textContent=G.coins+' м. • РАНГ '+(G.rank||1)+' • XP '+G.xp+'/'+xpToNext();
   const el=$('shop-list'); el.innerHTML='';
+  const counts={melee:0,gun:0,misc:0};
+  for(const it of SHOP)counts[shopCatOf(it)]++;
+  document.querySelectorAll('#shop-cats .cat-btn').forEach(b=>{
+    const c=b.dataset.cat; b.classList.toggle('act',c===shopCat);
+    b.innerHTML=SHOP_CAT_NAMES[c]+' <small>'+counts[c]+'</small>'; });
   for(const it of SHOP){
+    if(shopCatOf(it)!==shopCat)continue;
     const row=document.createElement('div'); row.className='srow';
     let owned=false,maxed=false,label='КУПИТЬ',price=it.price;
     if(it.w)owned=G.owned.includes(it.w);
@@ -3186,6 +3207,9 @@ function renderShop(){
 function openShop(){ if(G.state!=='game'||G.mode==='challenge'||G.mode==='ironman'){ addLog('В режиме ИСПЫТАНИЕ магазин закрыт'); return; }
   G.state='shop'; G.uiLock=true; renderShop(); show('screen-shop');
   document.exitPointerLock&&document.exitPointerLock(); }
+document.querySelectorAll('#shop-cats .cat-btn').forEach(b=>b.onclick=()=>{
+  if(shopCat===b.dataset.cat)return; shopCat=b.dataset.cat; SFX.click();
+  if(G.state==='shop')renderShop(); });
 function closeShop(){ hide('screen-shop'); G.state='game'; G.uiLock=false;
   canvas.requestPointerLock&&canvas.requestPointerLock(); updHUD(); }
 function renderInv(){
