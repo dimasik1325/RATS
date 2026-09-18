@@ -1433,7 +1433,10 @@ function updateMapLights(dt=0){
   const lightBudget=LIGHT_BUDGETS[G.lightQuality]??profile.lights,mapScale=MAP_SCALE[G.location]||1;
   for(const l of mapLights){const dx=player.x-l.position.x*mapScale,dz=player.z-l.position.z*mapScale;ranked.push({l,d:dx*dx+dz*dz});l.visible=false;}
   ranked.sort((a,b)=>a.d-b.d);
-  for(let i=0;i<ranked.length&&i<lightBudget;i++){const item=ranked[i];if(item.d<42*42)item.l.visible=true;}
+  // Число видимых источников всегда ровно budget: постоянное количество света
+  // избавляет от пересборки шейдеров при движении игрока (был источник фризов).
+  // Дальние источники почти не дают вклада из-за затухания, но держат счётчик стабильным.
+  for(let i=0;i<ranked.length;i++)ranked[i].l.visible=i<lightBudget;
 }
 function addCylinder(mat,x,y,z,rad,height,rotX=0,rotZ=0){ const m=new THREE.Mesh(new THREE.CylinderGeometry(rad,rad,height,12),mat); m.position.set(x,y,z); m.rotation.x=rotX; m.rotation.z=rotZ; m.userData.decorative=true; m.castShadow=true; locationProps.add(m); return m; }
 function addSecretCache(name,x,z,reward,color=0xd9a441){
@@ -2023,13 +2026,25 @@ const REAL_MAT={
   emissive:new THREE.MeshStandardMaterial({color:0x58dce6,emissive:0x1f92a5,emissiveIntensity:2.2,metalness:.35,roughness:.22})
 };
 let microDetailsDisabled=false,microDetailObjects=[];
-function realPart(g,geo,mat,x=0,y=0,z=0,rx=0,ry=0,rz=0){const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.rotation.set(rx,ry,rz);m.castShadow=true;m.receiveShadow=true;m.userData.microDetail=true;microDetailObjects.push(m);g.add(m);return m;}
+/* ================= КЕШ ГЕОМЕТРИЙ / МАТЕРИАЛОВ ВРАГОВ =================
+   Раньше каждая крыса создавала ~40 уникальных материалов и десятки геометрий.
+   Это давало синхронную компиляцию шейдеров при первом спавне нового типа
+   (большие фризы) и лишнюю нагрузку на GPU. Теперь всё переиспользуется. */
+const GEO_CACHE=new Map();
+const cachedGeo=(key,make)=>{let g=GEO_CACHE.get(key);if(!g){g=make();GEO_CACHE.set(key,g);}return g;};
+const MAT_CACHE=new Map();
+const cachedMat=(key,make)=>{let m=MAT_CACHE.get(key);if(!m){m=make();MAT_CACHE.set(key,m);}return m;};
+function markMicro(m){m.castShadow=false;m.receiveShadow=false;m.userData.microDetail=true;microDetailObjects.push(m);return m;}
+function realPart(g,geo,mat,x=0,y=0,z=0,rx=0,ry=0,rz=0){const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.rotation.set(rx,ry,rz);
+  // Микродетали (шерсть, клешни, болты) не участвуют в shadow-pass: десятки крыс
+  // с «тенящими» ворсинками обрушивали кадровую частоту при спавне волны.
+  m.castShadow=false;m.receiveShadow=false;m.userData.microDetail=true;microDetailObjects.push(m);g.add(m);return m;}
 function setMicroDetails(enabled){
   const disable=!enabled;if(microDetailsDisabled===disable)return;microDetailsDisabled=disable;
   for(const o of microDetailObjects)o.visible=enabled;
 }
-function realRivet(g,x,y,z,r=.012,mat=REAL_MAT.brass){return realPart(g,new THREE.SphereGeometry(r,8,6),mat,x,y,z);}
-function realRing(g,z,r=.04,t=.007,mat=REAL_MAT.brushed){return realPart(g,new THREE.TorusGeometry(r,t,8,18),mat,0,0,z);}
+function realRivet(g,x,y,z,r=.012,mat=REAL_MAT.brass){return realPart(g,cachedGeo('rivet'+r,()=>new THREE.SphereGeometry(r,8,6)),mat,x,y,z);}
+function realRing(g,z,r=.04,t=.007,mat=REAL_MAT.brushed){return realPart(g,cachedGeo('ring'+r+'_'+t,()=>new THREE.TorusGeometry(r,t,8,18)),mat,0,0,z);}
 function realRail(g,z,len=.28,w=.07){
   realPart(g,new THREE.BoxGeometry(w,.018,len),REAL_MAT.blued,0,.105,z);
   for(let i=0;i<Math.max(3,Math.floor(len/.055));i++)realPart(g,new THREE.BoxGeometry(w+.006,.022,.012),REAL_MAT.brushed,0,.117,z-len/2+.025+i*.055);
@@ -2377,23 +2392,23 @@ function makeThreeHoundMesh(t){
 }
 function addEnemyRealismPass(g,t){
   if(!g||g.userData.realismPass)return;g.userData.realismPass=true;
-  g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
+  g.traverse(o=>{if(o.isMesh&&!o.userData.microDetail){o.castShadow=true;o.receiveShadow=true;}});
   const kind=t.monsterKind||'';
-  const fur=new THREE.MeshStandardMaterial({color:t.color,roughness:.98,metalness:.02});
-  const skin=new THREE.MeshStandardMaterial({color:0x7e5140,roughness:.86,metalness:.02});
-  const bone=new THREE.MeshStandardMaterial({color:0xb4a88d,roughness:.76,metalness:.08});
-  const dark=new THREE.MeshStandardMaterial({color:0x15191a,roughness:.65,metalness:.48});
-  const edge=new THREE.MeshStandardMaterial({color:0x707a7e,roughness:.3,metalness:.9});
-  const glint=new THREE.MeshBasicMaterial({color:kind==='cyberdog'?0x72eaff:0xffe8c0});
+  const fur=cachedMat('rfur'+t.color,()=>new THREE.MeshStandardMaterial({color:t.color,roughness:.98,metalness:.02}));
+  const skin=cachedMat('rskin',()=>new THREE.MeshStandardMaterial({color:0x7e5140,roughness:.86,metalness:.02}));
+  const bone=cachedMat('rbone',()=>new THREE.MeshStandardMaterial({color:0xb4a88d,roughness:.76,metalness:.08}));
+  const dark=cachedMat('rdark',()=>new THREE.MeshStandardMaterial({color:0x15191a,roughness:.65,metalness:.48}));
+  const edge=cachedMat('redge',()=>new THREE.MeshStandardMaterial({color:0x707a7e,roughness:.3,metalness:.9}));
+  const glint=cachedMat('rglint'+kind,()=>new THREE.MeshBasicMaterial({color:kind==='cyberdog'?0x72eaff:0xffe8c0}));
   if(!kind){
     // Шерсть собирается в отдельные пряди, а не в гладкий цветной шар.
     for(let i=0;i<8;i++){
-      const tuft=realPart(g,new THREE.ConeGeometry(.045,.16+(i%3)*.035,6),fur,(i%2?.22:-.22),.58+(i%3)*.055,.02+i*.16,Math.PI/2,0,i%2?.16:-.16);
+      const tuft=realPart(g,cachedGeo('rtuft'+(i%3),()=>new THREE.ConeGeometry(.045,.16+(i%3)*.035,6)),fur,(i%2?.22:-.22),.58+(i%3)*.055,.02+i*.16,Math.PI/2,0,i%2?.16:-.16);
       tuft.scale.x=.72;
     }
     for(const side of [-1,1]){
-      realPart(g,new THREE.SphereGeometry(.025,8,6),glint,side*.105,.6,-.86);
-      for(let i=0;i<3;i++)realPart(g,new THREE.ConeGeometry(.018,.08,5),bone,side*(.23+i*.025),.08,-.36+i*.35,0,0,side*.65);
+      realPart(g,cachedGeo('rglint',()=>new THREE.SphereGeometry(.025,8,6)),glint,side*.105,.6,-.86);
+      for(let i=0;i<3;i++)realPart(g,cachedGeo('rclaw',()=>new THREE.ConeGeometry(.018,.08,5)),bone,side*(.23+i*.025),.08,-.36+i*.35,0,0,side*.65);
     }
     // Тонкие кожные складки вокруг шеи и основания хвоста.
     realRing(g,.38,.33,.008,skin);realRing(g,.55,.27,.006,skin);
@@ -2452,35 +2467,50 @@ function addEnemyRealismPass(g,t){
   // Общий тонкий контур контактных теней делает детали читаемыми при любом качестве графики.
   if(g.userData.body)g.userData.body.castShadow=true;
 }
+function creatureFurMat(t){
+  // Единый «шерстяной» PBR-материал на каждый вид крысы (цвет+свечение в ключе).
+  return cachedMat('cfurr'+t.color+'_'+(t.emissive||0),()=>new THREE.MeshPhysicalMaterial({color:t.color,roughness:.91,metalness:.03,emissive:t.emissive||0,emissiveIntensity:t.emissive?.9:0,clearcoat:.08,clearcoatRoughness:.2,bumpMap:CINEMATIC_SURFACES.rubber,bumpScale:.055}));
+}
 function pbrCreatureMaterial(src,kind){
   const metal=kind==='metal'||(src.metalness??0)>.58;
   const fur=kind==='fur';
-  const m=new THREE.MeshPhysicalMaterial({color:src.color?.clone?.()||new THREE.Color(0x4b4b4b),metalness:metal ? .88 : .03,roughness:fur ? .91 : (metal ? .27 : (src.roughness??.72)),emissive:src.emissive?.clone?.()||new THREE.Color(0),emissiveIntensity:src.emissiveIntensity??0,clearcoat:metal ? .5 : (fur ? .08 : .18),clearcoatRoughness:.2,bumpMap:CINEMATIC_SURFACES[metal?'metal':fur?'rubber':'polymer'],bumpScale:fur ? .055 : (metal ? .03 : .025)});
-  m.transparent=!!src.transparent;m.opacity=src.opacity??1;m.depthWrite=src.depthWrite!==false;return m;
+  // Материалы кешируются по цвету и типу поверхности: у крыс одного вида они общие.
+  // Это убирает сотни уникальных материалов и связанные с ними фризы компиляции.
+  const colorHex=src.color?.getHex?.()??0x4b4b4b, opacity=src.opacity??1;
+  const key='pbr'+(metal?'m':fur?'f':'p')+colorHex+'_'+opacity+'_'+(src.transparent?1:0);
+  return cachedMat(key,()=>{
+    const m=new THREE.MeshPhysicalMaterial({color:src.color?.clone?.()||new THREE.Color(0x4b4b4b),metalness:metal ? .88 : .03,roughness:fur ? .91 : (metal ? .27 : (src.roughness??.72)),emissive:src.emissive?.clone?.()||new THREE.Color(0),emissiveIntensity:src.emissiveIntensity??0,clearcoat:metal ? .5 : (fur ? .08 : .18),clearcoatRoughness:.2,bumpMap:CINEMATIC_SURFACES[metal?'metal':fur?'rubber':'polymer'],bumpScale:fur ? .055 : (metal ? .03 : .025)});
+    m.transparent=!!src.transparent;m.opacity=opacity;m.depthWrite=src.depthWrite!==false;return m;
+  });
 }
 function finishEnemyCinematic(g,t){
   if(!g||g.userData.cinematicFinish)return;g.userData.cinematicFinish=true;
   const kind=t.monsterKind||'';
   if(!kind){
-    const furMat=new THREE.MeshPhysicalMaterial({color:t.color,roughness:.96,metalness:.01,bumpMap:CINEMATIC_SURFACES.rubber,bumpScale:.07,clearcoat:.06});
+    const furMat=cachedMat('cfur'+t.color,()=>new THREE.MeshPhysicalMaterial({color:t.color,roughness:.96,metalness:.01,bumpMap:CINEMATIC_SURFACES.rubber,bumpScale:.07,clearcoat:.06}));
     // Микрообъём шерсти: пряди ложатся по спине и бокам, а не образуют плоскую окраску.
-    for(let i=0;i<14;i++){const side=i%2?-1:1, tuft=new THREE.Mesh(new THREE.ConeGeometry(.032+(i%3)*.008,.11+(i%4)*.022,7),furMat);tuft.position.set(side*(.19+(i%4)*.025),.55+(i%3)*.06,-.04+(i%7)*.15);tuft.rotation.set(Math.PI/2,0,side*.25);g.add(tuft);}
-    for(const side of [-1,1])for(let i=0;i<4;i++)realPart(g,new THREE.SphereGeometry(.018,8,6),REAL_MAT.white,side*(.12+i*.04),.52,-.92-i*.01);
+    for(let i=0;i<14;i++){const side=i%2?-1:1, tuft=markMicro(new THREE.Mesh(cachedGeo('ctuft'+(i%3),()=>new THREE.ConeGeometry(.032+(i%3)*.008,.11+(i%4)*.022,7)),furMat));tuft.position.set(side*(.19+(i%4)*.025),.55+(i%3)*.06,-.04+(i%7)*.15);tuft.rotation.set(Math.PI/2,0,side*.25);g.add(tuft);}
+    for(const side of [-1,1])for(let i=0;i<4;i++)realPart(g,cachedGeo('ctooth',()=>new THREE.SphereGeometry(.018,8,6)),REAL_MAT.white,side*(.12+i*.04),.52,-.92-i*.01);
   }else if(kind==='bulldozer'||kind==='steelboar'){
-    const mat=new THREE.MeshPhysicalMaterial({color:kind==='steelboar'?0x8c999b:0x5e6669,metalness:.94,roughness:.2,clearcoat:.55,clearcoatRoughness:.12,bumpMap:CINEMATIC_SURFACES.metal,bumpScale:.04});
-    for(const side of [-1,1])for(let i=0;i<4;i++){realPart(g,new THREE.CylinderGeometry(.045,.045,.06,12),mat,side*(.48+i*.015),.72+i*.13,.15-i*.25,0,Math.PI/2);realRivet(g,side*(.51+i*.015),.72+i*.13,.12-i*.25,.017,REAL_MAT.brass);}
+    const mat=cachedMat('carm'+kind,()=>new THREE.MeshPhysicalMaterial({color:kind==='steelboar'?0x8c999b:0x5e6669,metalness:.94,roughness:.2,clearcoat:.55,clearcoatRoughness:.12,bumpMap:CINEMATIC_SURFACES.metal,bumpScale:.04}));
+    for(const side of [-1,1])for(let i=0;i<4;i++){realPart(g,cachedGeo('carmcyl',()=>new THREE.CylinderGeometry(.045,.045,.06,12)),mat,side*(.48+i*.015),.72+i*.13,.15-i*.25,0,Math.PI/2);realRivet(g,side*(.51+i*.015),.72+i*.13,.12-i*.25,.017,REAL_MAT.brass);}
   }else if(kind==='threehound'){
-    const leather=new THREE.MeshPhysicalMaterial({color:0x33201d,metalness:.22,roughness:.76,bumpMap:CINEMATIC_SURFACES.wood,bumpScale:.06,clearcoat:.18});
-    for(const side of [-1,0,1]){realPart(g,new THREE.TorusGeometry(.22,.028,8,18),leather,side*.38,1.43,-.67,Math.PI/2);realPart(g,new THREE.SphereGeometry(.035,8,6),REAL_MAT.brass,side*.38,1.82,-.67);}
+    const leather=cachedMat('cleather',()=>new THREE.MeshPhysicalMaterial({color:0x33201d,metalness:.22,roughness:.76,bumpMap:CINEMATIC_SURFACES.wood,bumpScale:.06,clearcoat:.18}));
+    for(const side of [-1,0,1]){realPart(g,cachedGeo('ctorus',()=>new THREE.TorusGeometry(.22,.028,8,18)),leather,side*.38,1.43,-.67,Math.PI/2);realPart(g,cachedGeo('cbrass',()=>new THREE.SphereGeometry(.035,8,6)),REAL_MAT.brass,side*.38,1.82,-.67);}
   }
   g.traverse(o=>{
     if(!o.isMesh||!o.material||o.material.isMeshBasicMaterial)return;
+    // Основной материал тела не подменяем: он нужен вспышкам урона, растворению
+    // трупов и перекраске при спавне. Остальные детали берём из кеша.
+    if(o.material===g.userData.bm)return;
     const src=Array.isArray(o.material)?o.material[0]:o.material;if(!src.color)return;
     const type=o.geometry?.type||'';const materialKind=(src.metalness??0)>.55||/BoxGeometry|CylinderGeometry|TorusGeometry|TubeGeometry/.test(type)?'metal':'fur';
     if(src.transmission||src.opacity<.9){src.bumpMap=CINEMATIC_SURFACES.polymer;src.bumpScale=.018;return;}
-    o.material=pbrCreatureMaterial(src,materialKind);o.userData.creatureColor=materialKind==='fur';o.castShadow=true;o.receiveShadow=true;
+    o.material=pbrCreatureMaterial(src,materialKind);o.userData.creatureColor=materialKind==='fur';
+    if(!o.userData.microDetail){o.castShadow=true;o.receiveShadow=true;}
   });
 }
+const RAT_TAIL_CURVE=new THREE.CatmullRomCurve3([new THREE.Vector3(0,0,0),new THREE.Vector3(.02,.02,.22),new THREE.Vector3(-.05,.04,.43),new THREE.Vector3(.08,.02,.68),new THREE.Vector3(.02,.08,.9)]);
 function makeRatMesh(t){
   if(t.monsterKind==='cyberdog')return makeCyberDogMesh(t);
   if(t.monsterKind==='bone')return makeBoneBeastMesh(t);
@@ -2491,32 +2521,34 @@ function makeRatMesh(t){
   if(t.monsterKind==='steelboar')return makeSteelBoarMesh(t);
   if(t.monsterKind==='threehound')return makeThreeHoundMesh(t);
   const g=new THREE.Group();
+  // Мелкие части не отбрасывают тень и скрываются на минимальных настройках:
+  // это срезает десятки draw-call'ов shadow-pass на каждой крысе.
+  const micro=markMicro;
   const bm=new THREE.MeshStandardMaterial({color:t.color,roughness:.96,metalness:0,emissive:t.emissive||0x000000,emissiveIntensity:t.emissive?.75:0});
-  const earMat=new THREE.MeshStandardMaterial({color:0x9b5055,roughness:1});
-  const noseMat=new THREE.MeshStandardMaterial({color:0x2b1715,roughness:.9});
-  const toothMat=new THREE.MeshStandardMaterial({color:0xe7dfc8,roughness:.8});
+  const earMat=cachedMat('ear',()=>new THREE.MeshStandardMaterial({color:0x9b5055,roughness:1}));
+  const noseMat=cachedMat('nose',()=>new THREE.MeshStandardMaterial({color:0x2b1715,roughness:.9}));
+  const toothMat=cachedMat('tooth',()=>new THREE.MeshStandardMaterial({color:0xe7dfc8,roughness:.8}));
   const body=new THREE.Mesh(RG.body,bm); body.position.y=.42; body.scale.set(.78,.62,1.42); body.castShadow=true;
   const head=new THREE.Mesh(RG.head,bm); head.position.set(0,.56,-.61); head.scale.set(.95,.9,1.18); head.castShadow=true;
-  const snout=new THREE.Mesh(RG.snout,bm); snout.position.set(0,.47,-.86); snout.scale.set(.86,.7,1.45);
-  const nose=new THREE.Mesh(new THREE.SphereGeometry(.07,8,6),noseMat); nose.position.set(0,.46,-1.03);
+  const snout=new THREE.Mesh(RG.snout,bm); snout.position.set(0,.47,-.86); snout.scale.set(.86,.7,1.45); snout.castShadow=true;
+  const nose=micro(new THREE.Mesh(cachedGeo('nose',()=>new THREE.SphereGeometry(.07,8,6)),noseMat)); nose.position.set(0,.46,-1.03);
   const e1=new THREE.Mesh(RG.ear,bm); e1.position.set(.17,.77,-.56); e1.scale.set(.9,.45,.62); e1.rotation.z=-.22;
-  const e2=e1.clone(); e2.position.x=-.17; e2.rotation.z=.22;
-  const ie1=new THREE.Mesh(new THREE.SphereGeometry(.12,8,6),earMat); ie1.position.set(.17,.77,-.575); ie1.scale.set(.8,.32,.45);
-  const ie2=ie1.clone(); ie2.position.x=-.17;
+  const e2=e1.clone(); e2.position.x=-.17; e2.rotation.z=.22; micro(e1); micro(e2);
+  const ie1=micro(new THREE.Mesh(cachedGeo('earIn',()=>new THREE.SphereGeometry(.12,8,6)),earMat)); ie1.position.set(.17,.77,-.575); ie1.scale.set(.8,.32,.45);
+  const ie2=ie1.clone(); ie2.position.x=-.17; micro(ie2);
   const ey1=new THREE.Mesh(RG.eye,eyeMat(t.eye)); ey1.position.set(.105,.59,-.82);
   const ey2=ey1.clone(); ey2.position.x=-.105;
-  const tooth1=new THREE.Mesh(new THREE.BoxGeometry(.035,.12,.035),toothMat); tooth1.position.set(.045,.4,-.99);
-  const tooth2=tooth1.clone(); tooth2.position.x=-.045;
+  const tooth1=micro(new THREE.Mesh(cachedGeo('tooth',()=>new THREE.BoxGeometry(.035,.12,.035)),toothMat)); tooth1.position.set(.045,.4,-.99);
+  const tooth2=tooth1.clone(); tooth2.position.x=-.045; micro(tooth2);
   const legs=[]; for(let i=0;i<4;i++){ const l=new THREE.Mesh(RG.leg,bm);
-    l.position.set(i%2?.22:-.22,.2,i<2?-.3:.3); l.rotation.z=i%2?.08:-.08; legs.push(l); g.add(l); }
+    l.position.set(i%2?.22:-.22,.2,i<2?-.3:.3); l.rotation.z=i%2?.08:-.08; l.castShadow=true; legs.push(l); g.add(l); }
   const tailG=new THREE.Group(); tailG.position.set(0,.42,.48);
-  const tailCurve=new THREE.CatmullRomCurve3([new THREE.Vector3(0,0,0),new THREE.Vector3(.02,.02,.22),new THREE.Vector3(-.05,.04,.43),new THREE.Vector3(.08,.02,.68),new THREE.Vector3(.02,.08,.9)]);
-  const tail=new THREE.Mesh(new THREE.TubeGeometry(tailCurve,12,.026,6,false),bm); tailG.add(tail);
-  const whiskerMat=new THREE.LineBasicMaterial({color:0xb7b0a2,transparent:true,opacity:.62});
+  const tail=new THREE.Mesh(cachedGeo('tail',()=>new THREE.TubeGeometry(RAT_TAIL_CURVE,12,.026,6,false)),bm); tail.castShadow=true; tailG.add(tail);
+  const whiskerMat=cachedMat('whisker',()=>new THREE.LineBasicMaterial({color:0xb7b0a2,transparent:true,opacity:.62}));
   const whiskers=[];
   for(const side of [-1,1])for(let i=0;i<3;i++){
     const a=new THREE.Vector3(side*.06,.48,-.98), b=new THREE.Vector3(side*(.34+i*.05),.48+(i-1)*.045,-1.16-i*.025);
-    const wg=new THREE.BufferGeometry().setFromPoints([a,b]); const line=new THREE.Line(wg,whiskerMat); whiskers.push(line); g.add(line);
+    const wg=cachedGeo('wisk'+side+'_'+i,()=>new THREE.BufferGeometry().setFromPoints([a,b])); const line=new THREE.Line(wg,whiskerMat); whiskers.push(line); g.add(line);
   }
   g.add(body,head,snout,nose,e1,e2,ie1,ie2,ey1,ey2,tooth1,tooth2,tailG);
   const bg=new THREE.Sprite(new THREE.SpriteMaterial({color:0x0a0a0a,depthTest:true}));
@@ -2524,10 +2556,10 @@ function makeRatMesh(t){
   const fg=new THREE.Sprite(new THREE.SpriteMaterial({color:0xd9a441,depthTest:true}));
   fg.center.set(0,.5); fg.scale.set(.86,.06,1); fg.position.set(-.43,1.15,0); fg.visible=false;
   // Небольшие шерстяные пряди и когти добавляют силуэту объём без дорогих текстур.
-  const furMat=new THREE.MeshStandardMaterial({color:t.color,roughness:1,metalness:0});
-  for(let i=0;i<5;i++){const tuft=new THREE.Mesh(new THREE.ConeGeometry(.07,.2,5),furMat);tuft.position.set(0,.72,.05+i*.22);tuft.rotation.x=Math.PI/2;g.add(tuft);}
-  const clawMat=new THREE.MeshStandardMaterial({color:0xd0c4aa,roughness:.75});
-  for(const side of [-1,1])for(let i=0;i<2;i++){const claw=new THREE.Mesh(new THREE.ConeGeometry(.018,.09,5),clawMat);claw.position.set(side*(.25+i*.02),.08,i<1?-.36:.36);claw.rotation.z=side*.6;g.add(claw);}
+  const furMat=cachedMat('mfur'+t.color,()=>new THREE.MeshStandardMaterial({color:t.color,roughness:1,metalness:0}));
+  for(let i=0;i<5;i++){const tuft=micro(new THREE.Mesh(cachedGeo('mtuft',()=>new THREE.ConeGeometry(.07,.2,5)),furMat));tuft.position.set(0,.72,.05+i*.22);tuft.rotation.x=Math.PI/2;g.add(tuft);}
+  const clawMat=cachedMat('claw',()=>new THREE.MeshStandardMaterial({color:0xd0c4aa,roughness:.75}));
+  for(const side of [-1,1])for(let i=0;i<2;i++){const claw=micro(new THREE.Mesh(cachedGeo('mclaw',()=>new THREE.ConeGeometry(.018,.09,5)),clawMat));claw.position.set(side*(.25+i*.02),.08,i<1?-.36:.36);claw.rotation.z=side*.6;g.add(claw);}
   g.add(bg,fg);
   g.userData={bm,legs,tailG,body,bg,fg,whiskers,bodyBaseY:.42};
   return g; }
@@ -2568,9 +2600,11 @@ function spawnRat(typeName){
   if(microDetailsDisabled)mesh.traverse(o=>{if(o.userData?.microDetail)o.visible=false;});
   if(mesh.userData.t!==typeName){ mesh.userData.t=typeName; }
   mesh.userData.bm.color.setHex(t.color); mesh.userData.bm.color.offsetHSL(0,0,(Math.random()-.5)*.08);
-  mesh.traverse(o=>{if(o.isMesh&&o.userData.creatureColor&&o.material?.color)o.material.color.setHex(t.color);});
+  // «Шерстяные» материалы общие для крыс одного вида. При повторном использовании
+  // меша другим типом не красим общий материал (иначе перекрасились бы все крысы
+  // старого вида), а подменяем ссылку на кешированный материал нового вида.
+  mesh.traverse(o=>{if(o.isMesh&&o.userData.creatureColor)o.material=creatureFurMat(t);});
   mesh.userData.bm.emissive.setHex(t.emissive||0); mesh.userData.bm.emissiveIntensity=t.emissive?.9:0;
-  mesh.traverse(o=>{if(o.isMesh&&o.userData.creatureColor&&o.material?.emissive){o.material.emissive.setHex(t.emissive||0);o.material.emissiveIntensity=t.emissive?.9:0;}});
   let sx,sz;
   const pulled=activeNoise&&activeNoise.t>0&&activeNoise.strength>2;
   if(pulled&&G.location==='forest'){
@@ -2586,6 +2620,8 @@ function spawnRat(typeName){
   mesh.position.set(sx,0,sz);
   mesh.rotation.set(0,0,0); mesh.visible=true; mesh.scale.setScalar(t.scale*age.scale);
   scene.add(mesh);
+  // Подкрепления приходят без startWave — компилируем их шейдеры один раз при первом спавне.
+  if(!warmedTypes.has(typeName)){ warmedTypes.add(typeName); try{ renderer.compile(scene,camera); }catch(e){} }
   const hpMul=1+.07*Math.max(0,G.wave-1);
   const modeHp=G.mode==='nightmare'?1.4:G.mode==='challenge'?1.15:1;
   const modeSpeed=G.mode==='nightmare'?1.2:1,modeDmg=G.mode==='nightmare'?1.25:G.mode==='challenge'?1.12:1;
@@ -2643,8 +2679,9 @@ const bloodGeo=new THREE.CircleGeometry(.26,10);
 const casingGeo=new THREE.BoxGeometry(.035,.018,.075);
 const casingMat=new THREE.MeshLambertMaterial({color:0xc89b42});
 const grenades=[],mines=[],casings=[];
+const bloodMat=cachedMat('blood',()=>new THREE.MeshBasicMaterial({color:0x59140e,transparent:true,opacity:.68,depthWrite:false}));
 function dropBlood(x,z,scale=1){
-  const m=new THREE.Mesh(bloodGeo,new THREE.MeshBasicMaterial({color:0x59140e,transparent:true,opacity:.68,depthWrite:false}));
+  const m=new THREE.Mesh(bloodGeo,bloodMat);
   m.rotation.x=-Math.PI/2; m.rotation.z=Math.random()*Math.PI; m.position.set(x,.012,z); m.scale.setScalar(.55+Math.random()*.7*scale); scene.add(m); bloodDecals.push(m);
   if(bloodDecals.length>90){ const old=bloodDecals.shift(); scene.remove(old); }
 }
@@ -2790,6 +2827,31 @@ function die(){
 
 /* ================= ВОЛНЫ ================= */
 let pendingSpawns=[],spawnT=0,interT=0,spawnFamilyId=0,spawnFamilyLeft=0;
+/* Прогрев: перед волной незаметно собираем по одной крысе каждого нового типа и
+   компилируем их шейдеры заранее (renderer.compile). Без этого первый спавн нового
+   типа вызывал синхронную компиляцию шейдеров посреди боя — большой фриз. */
+const warmedTypes=new Set();
+function warmWaveMeshes(types){
+  const uniq=[...new Set(types||[])].filter(x=>RAT_TYPES[x]&&!warmedTypes.has(x)).slice(0,8);
+  if(!uniq.length)return;
+  for(const name of uniq){
+    try{
+      const t=RAT_TYPES[name];
+      const mesh=makeRatMesh(t);
+      addEnemyRealismPass(mesh,t); finishEnemyCinematic(mesh,t);
+      if(microDetailsDisabled)mesh.traverse(o=>{if(o.userData?.microDetail)o.visible=false;});
+      mesh.userData.t=name; mesh.userData.monsterKind=t.monsterKind||'';
+      mesh.userData.bm.color.setHex(t.color); mesh.userData.bm.emissive.setHex(t.emissive||0);
+      mesh.position.set(0,-90,0); mesh.scale.setScalar(t.scale||1);
+      scene.add(mesh);
+      try{ renderer.compile(scene,camera); }catch(e){}
+      mesh.visible=false;
+      ratPool.push(mesh);
+      warmedTypes.add(name);
+    }catch(e){}
+  }
+  try{ renderer.compile(scene,camera); }catch(e){}
+}
 function waveComp(n){
   const list=[],mode=G.mode||'survival';
   let count=Math.min(4+n*2,26);
@@ -2854,7 +2916,7 @@ function queueEventSpawns(types,count){
   for(let i=0;i<amount;i++)pendingSpawns.push(types[i%types.length]);
   return amount;
 }
-function startWave(){ G.wave++; pendingSpawns=waveComp(G.wave); spawnT=1.2+.25*(G.camp?.scout||0); spawnFamilyLeft=0; updateOperation();
+function startWave(){ G.wave++; pendingSpawns=waveComp(G.wave); warmWaveMeshes(pendingSpawns); spawnT=1.2+.25*(G.camp?.scout||0); spawnFamilyLeft=0; updateOperation();
   if(G.mode==='roulette'&&G.owned.length>1){ equip(pick(G.owned)); addLog('Рулетка оружия: новый комплект'); }
   const hasBoss=pendingSpawns.some(x=>RAT_TYPES[x]?.boss);
   announce(hasBoss?'БОСС-ВОЛНА':'ВОЛНА '+G.wave,hasBoss?(RAT_TYPES[pendingSpawns.find(x=>RAT_TYPES[x]?.boss)]?.name||'Босс близко'):(G.mode==='nightmare'?'Они стали быстрее':'ДЕРЖИСЬ, ОХОТНИК'));
