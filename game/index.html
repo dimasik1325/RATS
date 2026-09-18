@@ -1029,7 +1029,7 @@ function noise(dur,freq=800,q=1,vol=.3,delay=0,type='bandpass'){ if(!AC)return;
   const g=AC.createGain();g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.001,t+dur);
   s.connect(f);f.connect(g);g.connect(sfxBus||master);s.start(t);s.stop(t+dur+.03); }
 function musicNote(freq,dur=.9,vol=.08){ if(!AC||!musicBus)return; const t=AC.currentTime,o=AC.createOscillator(),g=AC.createGain();o.type='triangle';o.frequency.setValueAtTime(freq,t);o.frequency.exponentialRampToValueAtTime(freq*.98,t+dur);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+.08);g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.connect(g);g.connect(musicBus);o.start(t);o.stop(t+dur+.04); }
-function startMusic(){ if(!AC||musicTimer)return; const notes=[55,65.41,73.42,82.41,73.42,65.41,49,55]; const tick=()=>{if(!AC)return;const root=notes[musicStep++%notes.length];musicNote(root,1.7,.075);if(musicStep%4===0)musicNote(root*2,1.1,.035);};tick();musicTimer=setInterval(tick,1700); }
+function startMusic(){ musicStep=0;musicBeat=0;musicClock=.4;musicMode='calm'; }
 function crickets(){ if(!AC)return;
   const tick=()=>{ if(!AC)return;
     const n=2+(Math.random()*3|0), base=rnd(3600,4600);
@@ -3916,6 +3916,65 @@ function updatePlayerVoice(dt){
   VOICE_STATE.nextT=rnd(26,44);
   playVoiceLine(G.hp<G.maxHp*.35?'hurt':'idle');
 }
+/* ================= ДИНАМИЧЕСКАЯ МУЗЫКА =================
+   Четыре слоя, переключаются плавно по ходу боя:
+   calm  — редкий басовый эмбиент (меню, зачистка, пауза);
+   fight — пульс боя: чем больше живых крыс, тем плотнее ритм (4 уровня);
+   boss  — тревожная тема: ускоренный бас + диссонанс + низкий дрон.
+   После зачистки волны музыка сама затихает до спокойного слоя. */
+const MUSIC_PROG=[55,65.41,73.42,82.41,73.42,65.41,49,55];
+const BOSS_PROG=[55,55,58.27,51.91];
+let musicBeat=0,musicClock=0,musicMode='calm',musicLevel=0,bossDrone=null;
+function musicNoiseM(dur,freq,q,vol,delay=0){ if(!AC||!musicBus)return;
+  if(!nbuf){ const l=AC.sampleRate; nbuf=AC.createBuffer(1,l,AC.sampleRate); const d=nbuf.getChannelData(0); for(let i=0;i<l;i++)d[i]=Math.random()*2-1; }
+  const t=AC.currentTime+delay,s=AC.createBufferSource();s.buffer=nbuf;
+  const f=AC.createBiquadFilter();f.type='bandpass';f.frequency.value=freq;f.Q.value=q;
+  const g=AC.createGain();g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0008,t+dur);
+  s.connect(f);f.connect(g);g.connect(musicBus);s.start(t);s.stop(t+dur+.03); }
+function musicThump(vol=.14){ if(!AC||!musicBus)return; const t=AC.currentTime,o=AC.createOscillator(),g=AC.createGain();
+  o.type='sine';o.frequency.setValueAtTime(72,t);o.frequency.exponentialRampToValueAtTime(30,t+.16);
+  g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0008,t+.2);
+  o.connect(g);g.connect(musicBus);o.start(t);o.stop(t+.24); }
+function musicStab(){ tone(466.16,466.16,.22,'sawtooth',.045); tone(493.88,493.88,.22,'sawtooth',.04); }
+function setBossDrone(on){ if(!AC||!musicBus)return;
+  if(on&&!bossDrone){ const g=AC.createGain();g.gain.setValueAtTime(.0001,AC.currentTime);
+    try{g.gain.exponentialRampToValueAtTime(.05,AC.currentTime+1.2);}catch(e){}
+    g.connect(musicBus);
+    const o1=AC.createOscillator(),o2=AC.createOscillator();o1.type='sawtooth';o2.type='sawtooth';
+    o1.frequency.value=55;o2.frequency.value=58.27;o1.connect(g);o2.connect(g);o1.start();o2.start();
+    bossDrone={g,o1,o2}; }
+  else if(!on&&bossDrone){ const d=bossDrone;bossDrone=null;
+    try{ d.g.gain.setTargetAtTime(.0001,AC.currentTime,.5); setTimeout(()=>{try{d.o1.stop();d.o2.stop();d.g.disconnect();}catch(e){}},2200); }catch(e){ bossDrone=null; } } }
+function updateMusicSystem(dt){
+  if(!AC||!musicBus)return;
+  const bossAlive=G.state==='game'&&rats.some(r=>!r.dead&&r.t.boss);
+  const alive=G.state==='game'?rats.reduce((a,r)=>a+(r.dead?0:1),0):0;
+  const active=G.state==='game'&&!G.uiLock;
+  const mode=bossAlive?'boss':active&&alive>0?'fight':'calm';
+  const level=active?(alive>16?4:alive>8?3:alive>3?2:1):0;
+  if(mode!==musicMode){ musicStep=0;musicBeat=0;
+    if(musicMode==='boss')setBossDrone(false);
+    if(mode==='boss')setBossDrone(true);
+    musicMode=mode; }
+  musicLevel=level;
+  musicClock-=dt; if(musicClock>0)return;
+  const beat=mode==='calm'?1.7:mode==='fight'?(level>=3?.425:.85):.425;
+  musicClock=beat; musicBeat++;
+  if(mode==='calm'){
+    if(musicBeat%2===1){ const root=MUSIC_PROG[musicStep++%MUSIC_PROG.length]; musicNote(root,1.7,.075); if(musicStep%4===0)musicNote(root*2,1.1,.035); }
+  } else if(mode==='fight'){
+    if(musicBeat%2===1){ const root=MUSIC_PROG[musicStep++%MUSIC_PROG.length]; musicNote(root,.8,.07); }
+    if(level>=2)musicThump(.11);
+    if(level>=3&&musicBeat%2===0)musicNoiseM(.05,2400,1,.02);
+    if(level>=4&&musicBeat%4===0)musicStab();
+  } else {
+    const root=BOSS_PROG[musicStep++%BOSS_PROG.length];
+    musicNote(root,.42,.085);
+    musicThump(.15);
+    if(musicBeat%2===0)musicNoiseM(.05,1800,1,.025);
+    if(musicBeat%8===0)musicStab();
+  }
+}
 function updateGame(dt){
   const t=performance.now()/1000;
   updateSecretCaches(dt);
@@ -4196,6 +4255,7 @@ function loop(now){
   if(frameStep&&now-renderGate<frameStep-1)return;
   renderGate=now;
   const dt=Math.min(.05,(now-last)/1000); last=now;
+  updateMusicSystem(dt);
   const st=G.state;
   if(st==='video'){ renderVideo(now); return; }
   if(st==='intro'){ return; }
